@@ -39,14 +39,6 @@ class TestFailure(Exception):
 def fail(reason=None):
     raise TestFailure(reason)
 
-def runproc(*args, stdin=None, **kw):
-    proc = subprocess.Popen(stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            *args, **kw)
-    out, err = proc.communicate(stdin)
-    return out, err, proc.returncode
-
 def getsigdict():
     import signal
     d = {}
@@ -62,64 +54,71 @@ def signame(signum):
         return 'signal %i' % (signum,)
     return 'signal %i (%s)' % (signum, name)
 
-def check_output(cmd, input, output):
-    """Check the output of an external command.
-
-    check_output(cmd, input, output)
-
-    This will run cmd, feed it input, and check that the output
-    matches the expected output.  If it doesn't, fail() will be called
-    with a bunch of helpful diagnostics including the program's stderr
-    output and the diff between the expected and actual output.
-    """
-    if isinstance(input, str):
-        input = input.encode('utf8')
-    if isinstance(output, str):
-        output = output.encode('utf8')
-    out, err, retcode = runproc(cmd, stdin=input)
-    if retcode != 0:
-        reason = io.StringIO()
-        if retcode < 0:
-            print('program received %s' % (signame(-retcode),), file=reason)
-        else:
-            print('program returned %i' % (retcode,), file=reason)
-        print('command: %r' % (cmd,), file=reason)
-        if out:
-            print('=== OUTPUT ===', file=reason)
-            try:
-                out = out.decode('utf8')
-                for line in out.splitlines():
-                    print('  ' + line, file=reason)
-            except UnicodeDecodeError:
-                print('<invalid unicode>', file=reason)
-                for line in out.splitlines():
-                    print('  ' + repr(line), file=reason)
-    elif output is not None and out != output:
-        reason = io.StringIO()
-        print('incorrect output', file=reason)
-        print('command: %r' % (cmd,), file=reason)
-        print('=== DIFF ===', file=reason)
-        output = output.decode('utf8').splitlines(True)
-        try:
-            out = out.decode('utf8').splitlines(True)
-            diff = difflib.Differ().compare(output, out)
-            for line in diff:
-                reason.write(line)
-        except UnicodeDecodeError:
-            print('<invalid unicode>', file=reason)
-            for line in out.splitlines():
-                print('  ' + repr(line), file=reason)
-    else:
+def write_stream(name, stream, file):
+    if not stream:
         return
-    if err:
-        print('=== ERROR ===', file=reason)
+    print("=== %s ===" % name, file=file)
+    try:
+        if isinstance(stream, bytes):
+            stream = stream.decode('utf-8')
+    except UnicodeDecodeError:
+        print('<invalid unicode>', file=file)
+        for line in stream.splitlines():
+            print('  ' + repr(line), file=reason)
+    else:
+        for line in stream.splitlines():
+            print('  ' + line, file=file)
+
+class TestProc(object):
+    def __init__(self, cmd, stdin, expect_out=None):
+        self.cmd = cmd
+        self.stdin = stdin
+        self.expect_out = expect_out
+        self.stdout = None
+        self.stderr = None
+    def fail(self, reason):
+        msg = io.StringIO()
+        print(reason, file=msg)
+        print('command: %s' % ' '.join(self.cmd), file=msg)
+        write_stream('INPUT', self.stdin, msg)
+        if isinstance(self.stdout, str) and self.expect_out is not None:
+            if self.stdout != self.expect_out:
+                print('=== DIFF ===', file=msg)
+                eout = self.expect_out.splitlines(True)
+                sout = self.stdout.splitlines(True)
+                for line in difflib.Differ().compare(eout, sout):
+                    msg.write(line)
+        else:
+            write_stream('OUTPUT', self.stdout, msg)
+        write_stream('ERROR', self.stderr, msg)
+        fail(msg.getvalue())
+    def run(self):
+        stdin = self.stdin
+        if isinstance(stdin, str):
+            stdin = stdin.encode('utf8')
+        proc = subprocess.Popen(
+            self.cmd, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate(stdin)
+        retcode = proc.returncode
         try:
-            err = err.decode('utf8')
-            for line in err.splitlines():
-                print('  ' + line, file=reason)
+            uerr = 'stdout'
+            stdout = stdout.decode('utf8')
+            uerr = 'stderr'
+            stderr = stderr.decode('utf8')
+            uerr = None
         except UnicodeDecodeError:
-            print('<invalid unicode>', file=reason)
-    fail(reason.getvalue())
+            pass
+        self.stdout = stdout
+        self.stderr = stderr
+        if retcode < 0:
+            self.fail('program received %s' % signame(-retcode))
+        elif retcode > 0:
+            self.fail('program returned %s' % retcode)
+        if uerr:
+            self.fail('program wrote invalid UTF-8 to %s' % uerr)
+        if self.expect_out is not None and self.expect_out != stdout:
+            self.fail('incorrect output')
 
 FAILED = hilite("FAILED", False, True)
 OK = hilite("  ok  ", True, False)
@@ -171,7 +170,7 @@ def run():
         testfiles = ['selftest/selftest.py']
     pkg_globals = {
         'fail': fail,
-        'check_output': check_output,
+        'TestProc': TestProc,
     }
     acount = 0
     atcount = 0
