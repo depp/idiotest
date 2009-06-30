@@ -7,7 +7,7 @@ LICENSE = [
     'This source code is licensed under the GNU General Public License,',
     'Version 3. See gpl-3.0.txt for details.'
 ]
-EXCLUDE = set(['build', 'setup.py', 'header.py'])
+EXCLUDE = set(['build', 'setup.py', 'header.py', 'ntest.py'])
 
 class MyHeaderFixer(fixheader.HeaderFixer):
     def filter_path(self, path, isdir):
