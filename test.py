@@ -159,7 +159,7 @@ def run():
                            if not dirname.startswith('.')
                            and dirname != 'selftest']
             if dirpath == '.':
-                continue
+                filenames.remove('test.py')
             for filename in filenames:
                 if not filename.endswith('.py'):
                     continue
@@ -183,7 +183,8 @@ def run():
         inf = open(path, 'rb')
         text = inf.read()
         inf.close()
-        os.chdir(os.path.dirname(path))
+        if os.path.dirname(path):
+            os.chdir(os.path.dirname(path))
         exec(text, g)
         tests = []
         if 'tests' in g:
