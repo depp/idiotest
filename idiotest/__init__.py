@@ -6,11 +6,19 @@
 
 This has the main function for running an IdioTest suite of tests.
 """
-__all__ = ['run']
+__all__ = ['run', 'fail', 'suite', 'proc']
 import idiotest.suite
+import idiotest.fail
+import idiotest.proc
+
+env = {
+    'fail': idiotest.fail.fail,
+    'check_output': idiotest.proc.check_output,
+    'get_output': idiotest.proc.get_output,
+}
 
 def run(root='.'):
-    suite = idiotest.suite.TestSuite(root, {})
+    suite = idiotest.suite.TestSuite(root, env)
     suite.scan()
     for filename in suite.names:
         print filename
@@ -21,7 +29,10 @@ def run(root='.'):
             print testname
             try:
                 test.run()
-            except Exception, ex:
-                print "FAILED: %s" % str(ex)
+            except idiotest.fail.TestFailure, ex:
+                print "  === FAILED ==="
+                print '  ' + ex.reason
+                for line in ex.message.getvalue().splitlines():
+                    print '  ' + line
             else:
-                print "ok"
+                print "  ok"
