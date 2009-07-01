@@ -26,7 +26,6 @@ def run_tests(suite):
     atcount = 0
     ascount = 0
     for unitname in suite.names:
-        print unitname
         file = suite.files[unitname]
         file.load()
         if not file.names:
