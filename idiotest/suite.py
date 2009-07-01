@@ -57,7 +57,7 @@ class TestFile(object):
                 and hasattr(obj, '__call__')):
                 tests[name] = Test(cwd, obj)
                 names.append(name)
-        names.sort
+        names.sort()
         self.tests = tests
         self.names = names
 
