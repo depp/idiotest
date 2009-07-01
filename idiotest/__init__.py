@@ -10,6 +10,7 @@ __all__ = ['run', 'fail', 'suite', 'proc']
 import idiotest.suite
 import idiotest.fail
 import idiotest.proc
+import idiotest.console
 
 env = {
     'fail': idiotest.fail.fail,
@@ -20,19 +21,4 @@ env = {
 def run(root='.'):
     suite = idiotest.suite.TestSuite(root, env)
     suite.scan()
-    for filename in suite.names:
-        print filename
-        file = suite.files[filename]
-        file.load()
-        for testname in file.names:
-            test = file.tests[testname]
-            print testname
-            try:
-                test.run()
-            except idiotest.fail.TestFailure, ex:
-                print "  === FAILED ==="
-                print '  ' + ex.reason
-                for line in ex.message.getvalue().splitlines():
-                    print '  ' + line
-            else:
-                print "  ok"
+    idiotest.console.run_tests(suite)
