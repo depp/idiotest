@@ -26,15 +26,20 @@ class Test(object):
     assumed to be callable objects which do not take any arguments.
     """
     def __init__(self, cwd, obj):
+        if cwd == '.':
+            cwd = None
         self.cwd = cwd
         self.obj = obj
     def run(self):
-        oldcwd = os.getcwd()
-        try:
-            os.chdir(self.cwd)
+        if self.cwd:
+            oldcwd = os.getcwd()
+            try:
+                os.chdir(self.cwd)
+                self.obj()
+            finally:
+                os.chdir(oldcwd)
+        else:
             self.obj()
-        finally:
-            os.chdir(oldcwd)
 
 class TestFile(object):
     """A single file in a test suite.
