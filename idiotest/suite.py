@@ -58,8 +58,10 @@ class TestFile(object):
         names = []
         cwd = os.path.split(self.path)[0]
         for name, obj in env.items():
-            if (name not in self.env and not name.startswith('_')
-                and hasattr(obj, '__call__')):
+            if (name not in self.env
+                and not name.startswith('_')
+                and hasattr(obj, '__call__')
+                and not isinstance(obj, type)):
                 tests[name] = Test(cwd, obj)
                 names.append(name)
         names.sort()
