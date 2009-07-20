@@ -170,8 +170,8 @@ def check_output(cmd, input=None, output=None, cwd=None):
         if procout != output:
             err = ProcOutput()
             p.decorate(err)
-            eout = output.splitlines(True)
-            pout = procout.splitlines(True)
+            eout = [repr(x)+'\n' for x in output.splitlines(True)]
+            pout = [repr(x)+'\n' for x in procout.splitlines(True)]
             err.write(u"=== diff ===\n")
             for line in difflib.Differ().compare(eout, pout):
                 err.write(line)

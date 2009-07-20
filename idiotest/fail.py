@@ -15,6 +15,8 @@ class TestFailure(Exception):
         self.reason = reason
         self.message = StringIO.StringIO()
     def write(self, text):
+        if isinstance(text, str):
+            text = unicode(text)
         self.message.write(text)
 
 def fail(reason=None):
