@@ -9,6 +9,7 @@ a single object.  This also contains code for importing test code and
 running it.
 """
 import os
+import sys
 
 def relpath(basepath, path):
     if path == basepath:
@@ -86,6 +87,7 @@ class TestSuite(object):
         testfiles = {}
         testnames = []
         for dirpath, dirnames, filenames in os.walk(self.root):
+            is_root = dirpath == self.root == sys.path[0]
             dirnames[:] = [dirname for dirname in dirnames
                            if not dirname.startswith('.')]
             if dirpath != self.root:
@@ -95,11 +97,11 @@ class TestSuite(object):
                 base = ''
             for filename in filenames:
                 if filename.endswith('.py') and not filename.startswith('.'):
-                    path = os.path.join(dirpath, filename)
-                    path = os.path.normpath(path)
-                    if path == 'test.py':
+                    if is_root and filename == 'test.py':
                         # This is probably the driver script
                         continue
+                    path = os.path.join(dirpath, filename)
+                    path = os.path.normpath(path)
                     name = base + filename[:-3]
                     testnames.append(name)
                     testfiles[name] = TestFile(path, self.env)
