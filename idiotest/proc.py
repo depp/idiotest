@@ -49,7 +49,8 @@ def write_stream(name, stream, file):
         return
     file.write(u"=== %s ===\n" % name)
     try:
-        stream = encodings.utf_8.decode(stream)[0]
+        if not isinstance(stream, unicode):
+            stream = encodings.utf_8.decode(stream)[0]
     except UnicodeDecodeError:
         file.write(u'<invalid unicode>\n')
         for line in stream.splitlines():
