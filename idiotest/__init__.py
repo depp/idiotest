@@ -11,6 +11,8 @@ import idiotest.suite
 import idiotest.fail
 import idiotest.proc
 import idiotest.console
+import sys
+import os
 
 env = {
     'fail': idiotest.fail.fail,
@@ -19,6 +21,8 @@ env = {
 }
 
 def run(root='.'):
-    suite = idiotest.suite.TestSuite(root, env)
+    real_root = os.path.join(sys.path[0], root)
+    real_root = os.path.normpath(real_root)
+    suite = idiotest.suite.TestSuite(real_root, env)
     suite.scan()
     idiotest.console.run_tests(suite)
