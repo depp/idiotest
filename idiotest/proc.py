@@ -125,12 +125,12 @@ class Proc(object):
             err = ProcSignal(-self.retcode)
             self.decorate(err)
             raise err
-    def check_success(self):
-        if self.retcode > 0:
+    def check_success(self, result):
+        self.check_signal()
+        if self.retcode != result:
             err = ProcFailure(self.retcode)
             self.decorate(err)
             raise err
-        self.check_signal()
     def decorate(self, err):
         err.write(u'command: %s\n' % ' '.join(self.cmd))
         if self.cwd is not None:
@@ -138,16 +138,16 @@ class Proc(object):
         self.input.decorate(err)
         write_stream('stderr', self.error, err)
 
-def get_output(cmd, input=None, cwd=None):
+def get_output(cmd, input=None, cwd=None, result=0):
     p = Proc(cmd, parse_input(input), cwd)
     p.run()
-    p.check_success()
+    p.check_success(result)
     return p.output
 
-def check_output(cmd, input=None, output=None, cwd=None):
+def check_output(cmd, input=None, output=None, cwd=None, result=0):
     p = Proc(cmd, parse_input(input), cwd)
     p.run()
-    p.check_success()
+    p.check_success(result)
     output = parse_input(output).contents()
     procout = p.output
     if isinstance(output, unicode):
