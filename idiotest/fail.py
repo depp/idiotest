@@ -13,11 +13,11 @@ __all__ = ['TestFailure', 'fail']
 class TestFailure(Exception):
     def __init__(self, reason):
         self.reason = reason
-        self.message = StringIO.StringIO()
+        self.msg = StringIO.StringIO()
     def write(self, text):
         if isinstance(text, str):
             text = unicode(text)
-        self.message.write(text)
+        self.msg.write(text)
 
 def fail(reason=None):
     raise TestFailure(reason)

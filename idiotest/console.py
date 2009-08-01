@@ -43,7 +43,7 @@ def run_tests(suite):
                 result = True
             except idiotest.fail.TestFailure, ex:
                 result = False
-                reason = "%s\n%s" % (ex.reason, ex.message.getvalue())
+                reason = "%s\n%s" % (ex.reason, ex.msg.getvalue())
             except KeyboardInterrupt:
                 raise
             except:
