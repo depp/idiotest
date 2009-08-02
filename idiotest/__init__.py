@@ -20,11 +20,15 @@ def run(root='.'):
     parser = optparse.OptionParser()
     parser.add_option("-w", "--wrap", dest="wrap",
                       help="wrap commands with CMD", metavar="CMD")
+    parser.add_option("-e", "--err", dest="err",
+                      help="send stderr to terminal",
+                      action="store_true", default=False)
     (options, args) = parser.parse_args()
     if options.wrap:
         runner = idiotest.proc.ProcWrapper(options.wrap)
     else:
         runner = idiotest.proc.ProcRunner()
+    runner.geterr = not options.err
     env = {
         'fail': idiotest.fail.fail,
         'check_output': runner.check_output,

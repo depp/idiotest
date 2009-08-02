@@ -105,16 +105,21 @@ def parse_input(input):
     return InString(input)
 
 class Proc(object):
-    def __init__(self, cmd, input, cwd):
+    def __init__(self, cmd, input, cwd, geterr):
         self.cmd = cmd
         self.input = input
         self.cwd = cwd
         self.error = None
         self.output = None
+        self.geterr = geterr
     def run(self):
+        if self.geterr:
+            stderr = subprocess.PIPE
+        else:
+            stderr = None
         proc = subprocess.Popen(
             self.cmd, cwd=self.cwd, stdin=self.input.popenarg(),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout=subprocess.PIPE, stderr=stderr)
         output, error = proc.communicate(self.input.commarg())
         retcode = proc.returncode
         self.output = output
@@ -139,8 +144,10 @@ class Proc(object):
         write_stream('stderr', self.error, err)
 
 class ProcRunner(object):
+    def __init__(self):
+        self.geterr = True
     def proc(self, cmd, input, cwd):
-        return Proc(cmd, input, cwd)
+        return Proc(cmd, input, cwd, self.geterr)
     def get_output(self, cmd, input=None, cwd=None, result=0):
         p = self.proc(cmd, parse_input(input), cwd)
         p.run()
@@ -183,6 +190,7 @@ class ProcRunner(object):
 
 class ProcWrapper(ProcRunner):
     def __init__(self, wrap):
+        ProcRunner.__init__(self)
         cmd = wrap.split()
         for n, part in enumerate(cmd):
             if part == '%':
@@ -192,4 +200,5 @@ class ProcWrapper(ProcRunner):
         else:
             raise Exception("Invalid wrapper, missing %%: %s" % repr(wrap))
     def proc(self, cmd, input, cwd):
-        return Proc(self.prefix + cmd + self.suffix, input, cwd)
+        cmd2 = self.prefix + cmd + self.suffix
+        return ProcRunner.proc(self, cmd2, input, cwd)
