@@ -21,10 +21,14 @@ def run(root='.'):
     parser.add_option("-w", "--wrap", dest="wrap",
                       help="wrap commands with CMD", metavar="CMD")
     (options, args) = parser.parse_args()
+    if options.wrap:
+        runner = idiotest.proc.ProcWrapper(options.wrap)
+    else:
+        runner = idiotest.proc.ProcRunner()
     env = {
         'fail': idiotest.fail.fail,
-        'check_output': idiotest.proc.check_output,
-        'get_output': idiotest.proc.get_output,
+        'check_output': runner.check_output,
+        'get_output': runner.get_output,
         }
     if args:
         filter = idiotest.sglob.SGlob(args)

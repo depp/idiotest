@@ -138,42 +138,58 @@ class Proc(object):
         self.input.decorate(err)
         write_stream('stderr', self.error, err)
 
-def get_output(cmd, input=None, cwd=None, result=0):
-    p = Proc(cmd, parse_input(input), cwd)
-    p.run()
-    p.check_success(result)
-    return p.output
+class ProcRunner(object):
+    def proc(self, cmd, input, cwd):
+        return Proc(cmd, input, cwd)
+    def get_output(self, cmd, input=None, cwd=None, result=0):
+        p = self.proc(cmd, parse_input(input), cwd)
+        p.run()
+        p.check_success(result)
+        return p.output
+    def check_output(self, cmd, input=None, output=None,
+                     cwd=None, result=0):
+        p = self.proc(cmd, parse_input(input), cwd)
+        p.run()
+        p.check_success(result)
+        output = parse_input(output).contents()
+        procout = p.output
+        if isinstance(output, unicode):
+            try:
+                procout = encodings.utf_8.decode(procout)[0]
+            except UnicodeDecodeError:
+                err = ProcOutput()
+                p.decorate(err)
+                write_stream(u'output', procout, err)
+                raise err
+            if procout != output:
+                err = ProcOutput()
+                p.decorate(err)
+                eout = output.splitlines(True)
+                pout = procout.splitlines(True)
+                err.write(u"=== diff ===\n")
+                for line in difflib.Differ().compare(eout, pout):
+                    err.write(line)
+                raise err
+        else:
+            if procout != output:
+                err = ProcOutput()
+                p.decorate(err)
+                eout = [repr(x)+'\n' for x in output.splitlines(True)]
+                pout = [repr(x)+'\n' for x in procout.splitlines(True)]
+                err.write(u"=== diff ===\n")
+                for line in difflib.Differ().compare(eout, pout):
+                    err.write(line)
+                raise err
 
-def check_output(cmd, input=None, output=None, cwd=None, result=0):
-    p = Proc(cmd, parse_input(input), cwd)
-    p.run()
-    p.check_success(result)
-    output = parse_input(output).contents()
-    procout = p.output
-    if isinstance(output, unicode):
-        try:
-            procout = encodings.utf_8.decode(procout)[0]
-        except UnicodeDecodeError:
-            err = ProcOutput()
-            p.decorate(err)
-            write_stream(u'output', procout, err)
-            raise err
-        if procout != output:
-            err = ProcOutput()
-            p.decorate(err)
-            eout = output.splitlines(True)
-            pout = procout.splitlines(True)
-            err.write(u"=== diff ===\n")
-            for line in difflib.Differ().compare(eout, pout):
-                err.write(line)
-            raise err
-    else:
-        if procout != output:
-            err = ProcOutput()
-            p.decorate(err)
-            eout = [repr(x)+'\n' for x in output.splitlines(True)]
-            pout = [repr(x)+'\n' for x in procout.splitlines(True)]
-            err.write(u"=== diff ===\n")
-            for line in difflib.Differ().compare(eout, pout):
-                err.write(line)
-            raise err
+class ProcWrapper(ProcRunner):
+    def __init__(self, wrap):
+        cmd = wrap.split()
+        for n, part in enumerate(cmd):
+            if part == '%':
+                self.prefix = cmd[:n]
+                self.suffix = cmd[n+1:]
+                break
+        else:
+            raise Exception("Invalid wrapper, missing %%: %s" % repr(wrap))
+    def proc(self, cmd, input, cwd):
+        return Proc(self.prefix + cmd + self.suffix, input, cwd)
