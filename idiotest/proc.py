@@ -12,6 +12,7 @@ from cStringIO import StringIO
 import encodings.utf_8
 import idiotest.fail
 import difflib
+import errno
 
 def getsigdict():
     import signal
@@ -43,6 +44,10 @@ class ProcSignal(ProcException):
 class ProcOutput(ProcException):
     def __init__(self):
         ProcException.__init__(self, u"incorrect output")
+class ProcPipe(ProcException):
+    def __init__(self):
+        ProcException.__init__(self, u"process closed stdin unexpectedly")
+        self.retval = retval
 
 def write_stream(name, stream, file):
     if not stream:
@@ -112,6 +117,7 @@ class Proc(object):
         self.error = None
         self.output = None
         self.geterr = geterr
+        self.broken_pipe = False
     def run(self):
         if self.geterr:
             stderr = subprocess.PIPE
@@ -120,7 +126,16 @@ class Proc(object):
         proc = subprocess.Popen(
             self.cmd, cwd=self.cwd, stdin=self.input.popenarg(),
             stdout=subprocess.PIPE, stderr=stderr)
-        output, error = proc.communicate(self.input.commarg())
+        try:
+            output, error = proc.communicate(self.input.commarg())
+        except OSError, ex:
+            if ex.errno == errno.EPIPE:
+                self.broken_pipe = True
+                proc.wait()
+                output = ''
+                error = ''
+            else:
+                raise
         retcode = proc.returncode
         self.output = output
         self.error = error
@@ -134,6 +149,10 @@ class Proc(object):
         self.check_signal()
         if self.retcode != result:
             err = ProcFailure(self.retcode)
+            self.decorate(err)
+            raise err
+        if self.broken_pipe:
+            err = ProcPipe()
             self.decorate(err)
             raise err
     def decorate(self, err):
