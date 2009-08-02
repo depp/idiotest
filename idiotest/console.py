@@ -18,7 +18,7 @@ def hilite(string, status, bold):
         attr.append('1')
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
-def run_tests(suite):
+def run_tests(suite, filter):
     failed = '[%s]' % hilite("FAILED", False, True)
     ok = '[  %s  ]' % hilite("ok", True, False)
     scount = len(suite.names)
@@ -26,15 +26,29 @@ def run_tests(suite):
     atcount = 0
     ascount = 0
     for unitname in suite.names:
+        if filter is not None and not filter.prefix_match(unitname):
+            print '%s (skipped)' % unitname
+            continue
         file = suite.files[unitname]
         file.load()
         if not file.names:
             print '%s (no tests)' % unitname
             continue
-        tcount = len(file.names)
-        scount = 0
-        print '%s (%i tests)' % (unitname, tcount)
-        for testname in file.names:
+        if filter is not None:
+            tests = []
+            for testname in file.names:
+                if filter.full_match('%s.%s' % (unitname, testname)):
+                    tests.append(testname)
+            tcount = len(tests)
+            scount = 0
+            print '%s (%i tests, skipping %i)' % (
+                unitname, tcount, len(file.names) - tcount)
+        else:
+            tests = file.names
+            tcount = len(tests)
+            scount = 0
+            print '%s (%i tests)' % (unitname, tcount)
+        for testname in tests:
             test = file.tests[testname]
             print '  %-20s' % testname,
             sys.stdout.flush()
