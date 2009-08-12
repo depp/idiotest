@@ -13,6 +13,7 @@ import encodings.utf_8
 import idiotest.fail
 import difflib
 import errno
+import os.path
 
 def getsigdict():
     import signal
@@ -163,9 +164,32 @@ class Proc(object):
         write_stream('stderr', self.error, err)
 
 class ProcRunner(object):
-    def __init__(self):
+    def __init__(self, paths):
         self.geterr = True
+        if paths:
+            self.paths = [os.path.abspath(path) for path in paths]
+        else:
+            self.paths = ()
+        self.pcache = {}
+    def find_proc(self, proc):
+        if proc in self.pcache:
+            return self.pcache[proc]
+        if proc.startswith('./') or proc.startswith('../') \
+                or proc.startswith('/'):
+            path = proc
+        else:
+            for path in self.paths:
+                path = os.path.join(path, proc)
+                path = os.path.normpath(path)
+                if os.path.isfile(path):
+                    break
+            else:
+                path = proc
+        self.pcache[proc] = path
+        return path
     def proc(self, cmd, input, cwd):
+        cmd = cmd[:]
+        cmd[0] = self.find_proc(cmd[0])
         return Proc(cmd, input, cwd, self.geterr)
     def get_output(self, cmd, input=None, cwd=None, result=0):
         p = self.proc(cmd, parse_input(input), cwd)

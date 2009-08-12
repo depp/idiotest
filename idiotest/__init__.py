@@ -16,7 +16,7 @@ import sys
 import os
 import optparse
 
-def run(root='.'):
+def run(root='.', exec_paths=None):
     parser = optparse.OptionParser()
     parser.add_option("-w", "--wrap", dest="wrap",
                       help="wrap commands with CMD", metavar="CMD")
@@ -25,9 +25,9 @@ def run(root='.'):
                       action="store_true", default=False)
     (options, args) = parser.parse_args()
     if options.wrap:
-        runner = idiotest.proc.ProcWrapper(options.wrap)
+        runner = idiotest.proc.ProcWrapper(options.wrap, exec_paths)
     else:
-        runner = idiotest.proc.ProcRunner()
+        runner = idiotest.proc.ProcRunner(exec_paths)
     runner.geterr = not options.err
     env = {
         'fail': idiotest.fail.fail,
