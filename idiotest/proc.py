@@ -232,16 +232,10 @@ class ProcRunner(object):
                 raise err
 
 class ProcWrapper(ProcRunner):
-    def __init__(self, wrap):
-        ProcRunner.__init__(self)
-        cmd = wrap.split()
-        for n, part in enumerate(cmd):
-            if part == '%':
-                self.prefix = cmd[:n]
-                self.suffix = cmd[n+1:]
-                break
-        else:
-            raise Exception("Invalid wrapper, missing %%: %s" % repr(wrap))
+    def __init__(self, wrap, paths):
+        ProcRunner.__init__(self, paths)
+        self.wrap = wrap.split()
     def proc(self, cmd, input, cwd):
-        cmd2 = self.prefix + cmd + self.suffix
-        return ProcRunner.proc(self, cmd2, input, cwd)
+        proc = ProcRunner.proc(self, cmd, input, cwd)
+        proc.cmd = self.wrap + proc.cmd
+        return proc
