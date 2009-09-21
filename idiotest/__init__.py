@@ -16,7 +16,11 @@ import sys
 import os
 import optparse
 
-def run(root='.', exec_paths=None):
+def fixpath(path):
+    return os.path.normpath(
+        os.path.join(sys.path[0], path))
+
+def run(root='.', exec_paths=()):
     parser = optparse.OptionParser()
     parser.add_option("-w", "--wrap", dest="wrap",
                       help="wrap commands with CMD", metavar="CMD")
@@ -24,6 +28,7 @@ def run(root='.', exec_paths=None):
                       help="send stderr to terminal",
                       action="store_true", default=False)
     (options, args) = parser.parse_args()
+    exec_paths = [fixpath(p) for p in exec_paths]
     if options.wrap:
         runner = idiotest.proc.ProcWrapper(options.wrap, exec_paths)
     else:
@@ -38,8 +43,6 @@ def run(root='.', exec_paths=None):
         filter = idiotest.sglob.SGlob(args)
     else:
         filter = None
-    real_root = os.path.join(sys.path[0], root)
-    real_root = os.path.normpath(real_root)
-    suite = idiotest.suite.TestSuite(real_root, env)
+    suite = idiotest.suite.TestSuite(fixpath(root), env)
     suite.scan()
     idiotest.console.run_tests(suite, filter)
