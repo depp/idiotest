@@ -54,19 +54,23 @@ def write_stream(name, stream, file):
     if not stream:
         return
     file.write(u"=== %s ===\n" % name)
-    try:
-        if not isinstance(stream, unicode):
-            stream = encodings.utf_8.decode(stream)[0]
-    except UnicodeDecodeError:
-        file.write(u'<invalid unicode>\n')
+    ustream = None
+    if '\x00' not in stream:
+        try:
+            if not isinstance(stream, unicode):
+                ustream = encodings.utf_8.decode(stream)[0]
+        except UnicodeDecodeError:
+            pass
+    if ustream is None:
+        file.write(u'<binary>\n')
         for line in stream.splitlines():
             file.write(u'  %s\n' % repr(line)[1:-1])
         if stream and not stream.endswith('\n'):
             file.write(u'<no newline at end of stream>\n')
     else:
-        for line in stream.splitlines():
+        for line in ustream.splitlines():
             file.write(u'  %s\n' % line)
-        if stream and not stream.endswith(u'\n'):
+        if ustream and not ustream.endswith(u'\n'):
             file.write(u'<no newline at end of stream>\n')
 
 class InNone(object):
