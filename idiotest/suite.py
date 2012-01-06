@@ -228,6 +228,8 @@ class Suite(object):
                 modules.append(Module(name, abspath))
         modules.sort(key=lambda m: m.name)
         self.modules = modules
+        if not modules:
+            raise Exception('No test modules were found.')
 
     def run(self, obj, env):
         """Run all tests in the suite, passing the results to obj."""
