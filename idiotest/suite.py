@@ -27,6 +27,7 @@ The 'begin' function should return True if the module or test should
 be run and False if it should be skipped.  If the module or test is
 skipped, the 'skip' function will be called immediately.
 """
+from __future__ import with_statement
 import os
 import sys
 import idiotest.exception
@@ -171,7 +172,7 @@ class Module(object):
             try:
                 for test in self.load(env):
                     test.run(obj)
-            except TestException as ex:
+            except TestException, ex:
                 if not ex.module:
                     raise
                 if ex.skip:
