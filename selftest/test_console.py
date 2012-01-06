@@ -4,9 +4,11 @@
 # Version 3. See gpl-3.0.txt for details.
 import time
 
+@test
 def test_sleep_succeed():
     time.sleep(1)
 
+@test
 def time_sleep_fail():
     time.sleep(1)
     fail("supposed to fail")

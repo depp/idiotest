@@ -6,5 +6,6 @@ class NotATest(object):
     def __init__(self):
         print "This shouldn't get called"
 
+@test
 def is_a_test():
     pass

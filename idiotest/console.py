@@ -2,88 +2,107 @@
 # Copyright 2009 Dietrich Epp <depp@zdome.net>
 # This source code is licensed under the GNU General Public License,
 # Version 3. See gpl-3.0.txt for details.
-import traceback
 import sys
 import idiotest.fail
+import idiotest.suite as suite
 
-def hilite(string, status, bold):
-    attr = []
-    if status:
-        # green
-        attr.append('32')
+BOLD = 1
+
+FG_RED = 31
+FG_GREEN = 32
+FG_YELLOW = 33
+FG_BLUE = 34
+FG_MAGENTA = 35
+FG_CYAN = 36
+FG_WHITE = 37
+
+def hilite(string, *attr):
+    """Add attributes to a string unless stdout is not a tty."""
+    if not sys.stdout.isatty():
+        return string
+    attrs = ';'.join([str(a) for a in attr])
+    return '\x1b[%sm%s\x1b[0m' % (attrs, string)
+
+def box(width, string, *attr):
+    """Format a string in a "box" (between square brackets)."""
+    l = len(string)
+    s = hilite(string, *attr)
+    n = width - len(string)
+    m = n // 2
+    return '[%s%s%s]' % (' ' * (n - m), s, ' ' * m)
+
+MSG_SUCCESS = box(6, "ok", FG_GREEN)
+MSG_SKIP    = box(6, "skip", FG_BLUE)
+MSG_FAIL    = box(6, "FAILED", FG_RED, BOLD)
+
+def run_module(module, env, filter):
+    """Run a test module, return test (success, fail, skip) counts."""
+    if filter is not None and not filter.prefix_match(module.name):
+        print '%s (skipped)' % module.name
+        return 0, 0, 0
+    tests = module.load(env)
+    if not tests:
+        print '%s (no tests)' % module.name
+        return 0, 0, 0
+    numtest = len(tests)
+    if filter is not None:
+        tests = [t for t in tests
+                 if filter.full_match(test.fullname)]
+        numskip = numtest - len(tests)
+        numtest = len(tests)
+        print '%s (%d tests, skipping %d)' % \
+            (module.name, numtest, numskip)
     else:
-        # red
-        attr.append('31')
-    if bold:
-        attr.append('1')
-    return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
-
-def run_tests(suite, filter):
-    failed = '[%s]' % hilite("FAILED", False, True)
-    ok = '[  %s  ]' % hilite("ok", True, False)
-    scount = len(suite.names)
-    failures = []
-    atcount = 0
-    ascount = 0
-    for unitname in suite.names:
-        if filter is not None and not filter.prefix_match(unitname):
-            print '%s (skipped)' % unitname
-            continue
-        file = suite.files[unitname]
-        file.load()
-        if not file.names:
-            print '%s (no tests)' % unitname
-            continue
-        if filter is not None:
-            tests = []
-            for testname in file.names:
-                if filter.full_match('%s.%s' % (unitname, testname)):
-                    tests.append(testname)
-            tcount = len(tests)
-            scount = 0
-            print '%s (%i tests, skipping %i)' % (
-                unitname, tcount, len(file.names) - tcount)
-        else:
-            tests = file.names
-            tcount = len(tests)
-            scount = 0
-            print '%s (%i tests)' % (unitname, tcount)
-        for testname in tests:
-            test = file.tests[testname]
-            print '  %-20s' % testname,
+        numskip = 0
+        print '%s (%d tests)' % (module.name, numtest)
+    numsucc = 0
+    numfail = 0
+    with module.context():
+        for test in tests:
+            print '  %-20s' % test.name,
             sys.stdout.flush()
-            try:
-                test.run()
-                result = True
-            except idiotest.fail.TestFailure, ex:
-                result = False
-                reason = "%s\n%s" % (ex.reason, ex.msg.getvalue())
-            except KeyboardInterrupt:
-                raise
-            except:
-                result = False
-                reason = traceback.format_exc()
-            if result:
-                print ok
-                scount += 1
-            else:
-                print failed
+            status, reason = test.run()
+            if status == suite.SUCCESS:
+                numsucc += 1
+                print MSG_SUCCESS
+            elif status == suite.FAIL:
+                numfail += 1
+                print MSG_FAIL
                 for line in reason.splitlines():
                     print '   ', line
                 print
-        if scount < tcount:
-            failures.append((unitname, tcount, scount))
-        atcount += tcount
-        ascount += scount
+            elif status == suite.SKIP:
+                numskip += 1
+                print MSG_SKIP
+            else:
+                assert False
+    return numsucc, numfail, numskip
+
+def run_suite(suite, env, filter):
+    nummodule = len(suite.modules)
+    failures = []
+    numsucc = 0
+    numfail = 0
+    numskip = 0
+
+    for module in suite.modules:
+        msucc, mfail, mskip = run_module(module, env, filter)
+        if mfail:
+            failures.append((module, mfail))
+        numsucc += msucc
+        numfail += mfail
+        numskip += mskip
+
     print
-    print 'successes: %i/%i' % (ascount, atcount)
-    if ascount < atcount:
-        for unitname, tcount, scount in failures:
-            print '  %s: %i/%i failures' % \
-                (unitname, tcount - scount, tcount)
-        print
-        print 'test suite', failed
-        sys.exit(1)
+    print 'tests passed: %d' % (numsucc,)
+    if numskip:
+        print 'tests skipped: %d' % (numskip,)
+    if numfail:
+        print 'tests failed: %d' % (numfail,)
+        for module, mfail in failures:
+            print '  %s: %d failures' % (module.name, mfail)
+        print 'test suite:', hilite('FAILED', FG_RED, BOLD)
+        return False
     else:
-        print 'test suite', ok
-        sys.exit(0)
+        print 'test suite:', hilite('passed', FG_GREEN)
+        return True

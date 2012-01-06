@@ -43,6 +43,6 @@ def run(root='.', exec_paths=()):
         filter = idiotest.sglob.SGlob(args)
     else:
         filter = None
-    suite = idiotest.suite.TestSuite(fixpath(root), env)
+    suite = idiotest.suite.Suite(fixpath(root))
     suite.scan()
-    idiotest.console.run_tests(suite, filter)
+    idiotest.console.run_suite(suite, env, filter)
