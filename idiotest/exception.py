@@ -5,6 +5,7 @@
 This has the "TestFailure" exception as well as a convenient fail()
 function.
 """
+from __future__ import absolute_import
 ENV = ['fail', 'skip', 'fail_module', 'skip_module']
 import StringIO
 

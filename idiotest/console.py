@@ -1,5 +1,6 @@
 # Copyright 2009, 2012 Dietrich Epp <depp@zdome.net>
 # See LICENSE.txt for details.
+from __future__ import absolute_import
 import sys
 import idiotest.suite as suite
 

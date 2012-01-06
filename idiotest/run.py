@@ -1,6 +1,7 @@
 # Copyright 2009, 2012 Dietrich Epp <depp@zdome.net>
 # See LICENSE.txt for details.
 """IdioTest command-line interface."""
+from __future__ import absolute_import
 import idiotest.suite
 import idiotest.env
 import idiotest.console

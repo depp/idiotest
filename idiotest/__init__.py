@@ -18,3 +18,4 @@ Place a file in the 'tests' directory named 'test1.py':
         if True == False:
             fail()
 """
+from __future__ import absolute_import

@@ -5,6 +5,7 @@
 This contains the TestProc class, which runs a program and compares
 its output to the expected output.  It is fairly versatile.
 """
+from __future__ import absolute_import
 import subprocess
 from cStringIO import StringIO
 import encodings.utf_8

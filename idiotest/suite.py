@@ -27,7 +27,7 @@ The 'begin' function should return True if the module or test should
 be run and False if it should be skipped.  If the module or test is
 skipped, the 'skip' function will be called immediately.
 """
-from __future__ import with_statement
+from __future__ import with_statement, absolute_import
 import os
 import sys
 import idiotest.exception
