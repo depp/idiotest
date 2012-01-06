@@ -53,7 +53,7 @@ class ConsoleTest(object):
         self.failures = []
         self.partial_line = False
         if filter is not None:
-            self.filter = f.prefix_match
+            self.filter = filter.prefix_match
         else:
             self.filter = const_true
 
@@ -100,7 +100,7 @@ class ConsoleTest(object):
     def test_begin(self, test):
         print '  %-20s' % (test.name,),
         self.partial_line = True
-        return self.filter(test.name)
+        return self.filter(test.fullname)
 
     def test_pass(self, test):
         if not test.fail:

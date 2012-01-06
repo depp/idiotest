@@ -63,7 +63,8 @@ class Test(object):
     def run(self, obj):
         """Run test and pass result to the callback object. """
         if not obj.test_begin(self):
-            obj.test_skip(self)
+            obj.test_skip(self, None)
+            return
         try:
             self.test()
         except TestException, ex:
@@ -167,6 +168,7 @@ class Module(object):
         """Run tests in the module, passing the results to obj."""
         if not obj.module_begin(self):
             obj.module_skip(self, None)
+            return
         with self.context():
             try:
                 for test in self.load(env):
