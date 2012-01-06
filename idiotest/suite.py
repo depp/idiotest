@@ -55,6 +55,13 @@ class Test(object):
             reason = traceback.format_exc()
             return FAIL, reason
 
+def getname(obj):
+    """Get the default name for a test."""
+    try:
+        return obj.__name__
+    except AttributeError:
+        return repr(obj)
+
 class Module(object):
     """A single file in a test suite.
 
@@ -81,21 +88,43 @@ class Module(object):
             testnames.add(name)
             tests.append(Test(self, name, obj))
             return obj
-        def testdeco(param):
-            """The 'test' decorator."""
-            def namedeco(obj):
-                return mktest(param, obj)
-            if isinstance(param, basestring):
-                return namedeco
-            elif callable(param):
-                try:
-                    name = param.__name__
-                except AttributeError:
-                    name = repr(param)
-                return mktest(name, param)
-            raise Exception("invalid use of 'test' decorator")
+        def test(*arg, **kw):
+            """Register a test.
+
+            Can be called directly or used as a decorator.  Examples:
+
+                test(name, obj, **kw)   # obj is callable
+                @test                   # decorates a callable
+                @test(**kw)             # decorates a callable
+                @test(name, **kw)       # decorates a callable
+            """
+            if not arg:
+                def deco0(obj):
+                    return mktest(getname(obj), obj, **kw)
+                return deco1
+            elif len(arg) == 1:
+                param = arg[0]
+                if isinstance(param, basestring):
+                    def deco1(obj):
+                        return mktest(param, obj, **kw)
+                    return deco1
+                elif callable(param):
+                    return mktest(getname(param), param, **kw)
+                else:
+                    raise TypeError(
+                        "'test' requires either a name or callable")
+            elif len(arg) == 2:
+                name, obj = arg
+                if not isinstance(name, basestring):
+                    raise TypeError("'test' name must be a string")
+                if not callable(obj):
+                    raise TypeError("test must be callable")
+                return mktest(name, obj)
+            else:
+                raise ValueError(
+                    "'test' expects two or fewer positional arguments")
         env = dict(env)
-        env['test'] = testdeco
+        env['test'] = test
         execfile(self.path, env, env)
         return tests
 
