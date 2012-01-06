@@ -31,10 +31,6 @@ def box(width, string, *attr):
     m = n // 2
     return '[%s%s%s]' % (' ' * (n - m), s, ' ' * m)
 
-MSG_SUCCESS = box(6, "ok", FG_GREEN)
-MSG_SKIP    = box(6, "skip", FG_BLUE)
-MSG_FAIL    = box(6, "FAILED", FG_RED, BOLD)
-
 def run_module(module, env, filter):
     """Run a test module, return test (success, fail, skip) counts."""
     if filter is not None and not filter.prefix_match(module.name):
@@ -63,17 +59,26 @@ def run_module(module, env, filter):
             sys.stdout.flush()
             status, reason = test.run()
             if status == suite.SUCCESS:
-                numsucc += 1
-                print MSG_SUCCESS
+                if not test.fail:
+                    numsucc += 1
+                    print box(6, "ok", FG_GREEN)
+                else:
+                    numfail += 1
+                    print box(6, "PASSED", FG_RED, BOLD), \
+                        '(expected failure)'
             elif status == suite.FAIL:
-                numfail += 1
-                print MSG_FAIL
+                if not test.fail:
+                    numfail += 1
+                    print box(6, "FAILED", FG_RED, BOLD)
+                else:
+                    numsucc += 1
+                    print box(6, "failed", FG_GREEN), '(expected)'
                 for line in reason.splitlines():
                     print '   ', line
                 print
             elif status == suite.SKIP:
                 numskip += 1
-                print MSG_SKIP
+                print box(6, "skip", FG_BLUE)
             else:
                 assert False
     return numsucc, numfail, numskip

@@ -3,7 +3,7 @@
 def nostdin_1():
     check_output(['./nostdin'], 'Test', '')
 
-@test
+@test(fail=True)
 def nostdin_2_fail():
     check_output(['./nostdin'], 'Test', 'Bogus')
 
@@ -11,6 +11,6 @@ def nostdin_2_fail():
 def nostdout_1():
     check_output(['./nostdout'], 'Test', '')
 
-@test
+@test(fail=True)
 def nostdout_2_fail():
     check_output(['./nostdout'], 'Test', 'Bogus')

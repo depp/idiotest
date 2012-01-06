@@ -27,10 +27,11 @@ def relpath(basepath, path):
 
 class Test(object):
     """A single test."""
-    def __init__(self, module, name, obj):
+    def __init__(self, module, name, obj, fail=False):
         self.module = module
         self.name = name
         self.obj = obj
+        self.fail = fail
 
     @property
     def fullname(self):
@@ -80,13 +81,13 @@ class Module(object):
         """
         testnames = set()
         tests = []
-        def mktest(name, obj):
+        def mktest(name, obj, **kw):
             if name in testnames:
                 raise Exception('Duplicate test name: %r' % (name,))
             if not callable(obj):
                 raise Exception('Test %r not callable' % (name,))
             testnames.add(name)
-            tests.append(Test(self, name, obj))
+            tests.append(Test(self, name, obj, **kw))
             return obj
         def test(*arg, **kw):
             """Register a test.
@@ -101,7 +102,7 @@ class Module(object):
             if not arg:
                 def deco0(obj):
                     return mktest(getname(obj), obj, **kw)
-                return deco1
+                return deco0
             elif len(arg) == 1:
                 param = arg[0]
                 if isinstance(param, basestring):
@@ -119,7 +120,7 @@ class Module(object):
                     raise TypeError("'test' name must be a string")
                 if not callable(obj):
                     raise TypeError("test must be callable")
-                return mktest(name, obj)
+                return mktest(name, obj, **kw)
             else:
                 raise ValueError(
                     "'test' expects two or fewer positional arguments")

@@ -8,7 +8,7 @@ import time
 def test_sleep_succeed():
     time.sleep(1)
 
-@test
+@test(fail=True)
 def time_sleep_fail():
     time.sleep(1)
     fail("supposed to fail")

@@ -20,10 +20,10 @@ def test3_outfile():
 def test4_inoutfile():
     check_output(['cat'], '@test1.txt', '@test1.txt')
 
-@test
+@test(fail=True)
 def test5_FAIL_RETCODE():
     check_output(['cat', 'nonexistant-file.txt'], None, 'Some text\n')
 
-@test
+@test(fail=True)
 def test6_FAIL_DIFF():
     check_output(['cat'], '@test2.in.txt', '@test2.out.txt')
