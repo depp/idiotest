@@ -48,7 +48,7 @@ class ProcOutput(ProcException):
 class ProcPipe(ProcException):
     def __init__(self):
         ProcException.__init__(self, u"process closed stdin unexpectedly")
-        self.retval = retval
+        self.retval = -1
 
 def write_stream(name, stream, file):
     if not stream:
