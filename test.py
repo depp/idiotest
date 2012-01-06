@@ -1,4 +1,3 @@
 #!/usr/bin/env python
-import idiotest.run
-
-idiotest.run.run('selftest')
+import idiotest.run, sys, os
+idiotest.run.run(os.path.join(sys.path[0], 'selftest'))
