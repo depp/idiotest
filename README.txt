@@ -6,6 +6,8 @@ programs, feed those programs input, and compare the output to the
 expected output.  IdioTest does not know or care what language you
 write your programs in.  Tests in IdioTest are written in Python.
 
+IdioTest requires Python 2.5 or higher in the 2.x series.
+
 I originally made this into its own project because I had copies of it
 in three other projects.  Here are the goals of idiotest:
 
