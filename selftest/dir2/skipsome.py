@@ -1,3 +1,6 @@
+# Copyright 2012 Dietrich Epp <depp@zdome.net>
+# See LICENSE.txt for details.
+
 @test
 def skip_this():
     skip()

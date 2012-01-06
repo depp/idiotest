@@ -1,7 +1,5 @@
-# IdioTest - idiotest/run.py
-# Copyright 2009 Dietrich Epp <depp@zdome.net>
-# This source code is licensed under the GNU General Public License,
-# Version 3. See gpl-3.0.txt for details.
+# Copyright 2009, 2012 Dietrich Epp <depp@zdome.net>
+# See LICENSE.txt for details.
 """IdioTest command-line interface."""
 import idiotest.suite
 import idiotest.env

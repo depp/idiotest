@@ -1,3 +1,5 @@
+# Copyright 2009, 2012 Dietrich Epp <depp@zdome.net>
+# See LICENSE.txt for details.
 """IdioTest global environment for test modules."""
 import idiotest.proc
 import idiotest.exception

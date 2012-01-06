@@ -1,3 +1,5 @@
+/* Copyright 2012 Dietrich Epp <depp@zdome.net>
+   See LICENSE.txt for details.  */
 #include <unistd.h>
 
 int main(int argc, char *argv[])

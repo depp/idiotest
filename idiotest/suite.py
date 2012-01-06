@@ -1,7 +1,5 @@
-# IdioTest - idiotest/suite.py
 # Copyright 2009, 2012 Dietrich Epp <depp@zdome.net>
-# This source code is licensed under the GNU General Public License,
-# Version 3. See gpl-3.0.txt for details.
+# See LICENSE.txt for details.
 """IdioTest test suite.
 
 A test suite scans a directory for test files and organizes them into
