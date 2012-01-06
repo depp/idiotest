@@ -170,12 +170,10 @@ class Proc(object):
         write_stream('stderr', self.error, err)
 
 class ProcRunner(object):
-    def __init__(self, paths):
-        self.geterr = True
-        if paths:
-            self.paths = [os.path.abspath(path) for path in paths]
-        else:
-            self.paths = ()
+    ENV = ['check_output', 'get_output']
+    def __init__(self, options):
+        self.geterr = not options.err
+        self.paths = [os.path.abspath(path) for path in options.exec_paths]
         self.pcache = {}
     def find_proc(self, proc):
         if proc in self.pcache:
@@ -238,10 +236,16 @@ class ProcRunner(object):
                 raise err
 
 class ProcWrapper(ProcRunner):
-    def __init__(self, wrap, paths):
-        ProcRunner.__init__(self, paths)
-        self.wrap = wrap.split()
+    def __init__(self, options):
+        ProcRunner.__init__(self, options)
+        self.wrap = options.wrap.split()
     def proc(self, cmd, input, cwd):
         proc = ProcRunner.proc(self, cmd, input, cwd)
         proc.cmd = self.wrap + proc.cmd
         return proc
+
+def env(options):
+    if options.wrap:
+        return ProcWrapper(options)
+    else:
+        return ProcRunner(options)

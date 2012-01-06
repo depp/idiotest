@@ -219,12 +219,13 @@ class Suite(object):
                             .replace(os.path.sep, '.') + '.')
             else:
                 basename = ''
+            absdirpath = os.path.abspath(dirpath)
             for f in filenames:
                 if f.startswith('.') or not f.endswith('.py'):
                     continue
-                path = os.path.join(dirpath, f)
+                abspath = os.path.join(absdirpath, f)
                 name = basename + f[:-3]
-                modules.append(Module(name, path))
+                modules.append(Module(name, abspath))
         modules.sort(key=lambda m: m.name)
         self.modules = modules
 

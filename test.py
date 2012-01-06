@@ -1,4 +1,4 @@
 #!/usr/bin/env python
-import idiotest
+import idiotest.run
 
-idiotest.run('selftest')
+idiotest.run.run('selftest')

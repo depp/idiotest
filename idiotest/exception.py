@@ -7,6 +7,7 @@
 This has the "TestFailure" exception as well as a convenient fail()
 function.
 """
+ENV = ['fail', 'skip', 'fail_module', 'skip_module']
 import StringIO
 
 class TestException(Exception):
@@ -62,3 +63,4 @@ def skip_module(reason=None):
     the module has already loaded, all remaining tests are skipped.
     """
     raise ModuleSkip(reason)
+
