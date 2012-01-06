@@ -6,7 +6,28 @@
 
 A test suite scans a directory for test files and organizes them into
 a single object.  This also contains code for importing test code and
-running it.
+running it.  A callback object is required for running tests.
+
+A "callback object" is an object which receives results from running
+tests.  It must implement the following methods:
+
+    module_begin(module)
+    module_pass(module)
+    module_skip(module, reason)
+    module_fail(module, reason)
+    test_begin(test)
+    test_pass(test)
+    test_skip(test, reason)
+    test_fail(test, reason)
+
+For each module and test, the 'begin' function will be called and then
+either 'pass', 'skip', or 'fail' will be called.  Note that
+'module_pass' will ordinarily be called even if any or all of the
+tests in the module fail.
+
+The 'begin' function should return True if the module or test should
+be run and False if it should be skipped.  If the module or test is
+skipped, the 'skip' function will be called immediately.
 """
 import os
 import sys
@@ -29,35 +50,36 @@ def relpath(basepath, path):
 
 class Test(object):
     """A single test."""
-    def __init__(self, module, name, obj, fail=False):
+    def __init__(self, module, name, test, fail=False):
         self.module = module
         self.name = name
-        self.obj = obj
+        self.test = test
         self.fail = fail
 
     @property
     def fullname(self):
         return '%s.%s' % (self.module.name, self.name)
 
-    def run(self):
-        """Run test and return (status, reason).
-
-        The status is one of SUCCESS, SKIP, or FAIL.  The reason will
-        be None unless status is FAIL (you don't need a reason to
-        succeed).
-        """
+    def run(self, obj):
+        """Run test and pass result to the callback object. """
+        if not obj.test_begin(self):
+            obj.test_skip(self)
         try:
-            self.obj()
-            return SUCCESS, None
+            self.test()
         except TestException, ex:
             if ex.module:
                 raise
-            return (SKIP if ex.skip else FAIL), ex.get()
+            if ex.skip:
+                obj.test_skip(self, ex.get())
+            else:
+                obj.test_fail(self, ex.get())
         except KeyboardInterrupt:
             raise
         except:
             reason = traceback.format_exc()
-            return FAIL, reason
+            obj.test_fail(self, reason)
+        else:
+            obj.test_pass(self)
 
 def getname(obj):
     """Get the default name for a test."""
@@ -77,14 +99,11 @@ class Module(object):
         self.path = path
 
     def load(self, env):
-        """Load a module and return the (status, data).
+        """Load a module and return the tests.
 
-        The 'env' specifies the global environment for loading the
-        test module.  It is not modified.
-
-        If status is SUCCESS, then the data is a list of tests.  If
-        status is SKIP or FAIL, then the data is a reason for failure
-        or skipping.
+        Exceptions for failing or skipping the module will pass
+        through here, you should call 'run' instead, which handles
+        them.
         """
         testnames = set()
         tests = []
@@ -133,13 +152,8 @@ class Module(object):
                     "'test' expects two or fewer positional arguments")
         env = dict(env)
         env['test'] = test
-        try:
-            execfile(self.path, env, env)
-        except TestException as ex:
-            if not ex.module:
-                raise
-            return (SKIP if ex.skip else FAIL), ex.get()
-        return SUCCESS, tests
+        execfile(self.path, env, env)
+        return tests
 
     def context(self):
         """Return the execution context for this module.
@@ -148,6 +162,29 @@ class Module(object):
         can be executed inside the 'with' statement.
         """
         return Context(self)
+
+    def run(self, obj, env):
+        """Run tests in the module, passing the results to obj."""
+        if not obj.module_begin(self):
+            obj.module_skip(self, None)
+        with self.context():
+            try:
+                for test in self.load(env):
+                    test.run(obj)
+            except TestException as ex:
+                if not ex.module:
+                    raise
+                if ex.skip:
+                    obj.module_skip(self, ex.get())
+                else:
+                    obj.module_fail(self, ex.get())
+            except KeyboardInterrupt:
+                raise
+            except:
+                reason = traceback.format_exc()
+                obj.module_fail(self, reason)
+            else:
+                obj.module_pass(self)
 
 class Context(object):
     def __init__(self, module):
@@ -190,3 +227,8 @@ class Suite(object):
                 modules.append(Module(name, path))
         modules.sort(key=lambda m: m.name)
         self.modules = modules
+
+    def run(self, obj, env):
+        """Run all tests in the suite, passing the results to obj."""
+        for module in self.modules:
+            module.run(obj, env)

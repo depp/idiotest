@@ -30,7 +30,7 @@ def box(width, string, *attr):
     m = n // 2
     return '[%s%s%s]' % (' ' * (n - m), s, ' ' * m)
 
-def show_reason(reason, indent=0):
+def print_reason(reason, indent=0):
     if not reason:
         return
     f = sys.stdout
@@ -41,91 +41,112 @@ def show_reason(reason, indent=0):
         f.write('\n')
     f.write('\n')
 
-def run_module(module, env, filter):
-    """Run a test module, return test (success, fail, skip) counts."""
-    if filter is not None and not filter.prefix_match(module.name):
-        print '%s (skipped)' % module.name
-        return 0, 0, 0
-    status, data = module.load(env)
-    if status == suite.FAIL:
-        print '%-22s' % module.name, box(6, "FAILED", FG_RED, FG_BOLD)
-        show_reason(data, 2)
-        return 0, 1, 0
-    elif status == suite.SKIP:
-        print '%-22s' % module.name, box(6, "skip", FG_BLUE)
-        show_reason(data, 2)
-        return 0, 0, 1
-    assert status == suite.SUCCESS
-    tests = data
-    if not tests:
-        print '%s (no tests)' % module.name
-        return 0, 0, 0
-    numtest = len(tests)
-    if filter is not None:
-        tests = [t for t in tests
-                 if filter.full_match(test.fullname)]
-        numskip = numtest - len(tests)
-        numtest = len(tests)
-        print '%s (%d tests, skipping %d)' % \
-            (module.name, numtest, numskip)
-    else:
-        numskip = 0
-        print '%s (%d tests)' % (module.name, numtest)
-    numsucc = 0
-    numfail = 0
-    with module.context():
-        for test in tests:
-            print '  %-20s' % test.name,
-            sys.stdout.flush()
-            status, reason = test.run()
-            if status == suite.SUCCESS:
-                if not test.fail:
-                    numsucc += 1
-                    print box(6, "ok", FG_GREEN)
-                else:
-                    numfail += 1
-                    print box(6, "PASSED", FG_RED, BOLD), \
-                        '(expected failure)'
-            elif status == suite.FAIL:
-                if not test.fail:
-                    numfail += 1
-                    print box(6, "FAILED", FG_RED, BOLD)
-                else:
-                    numsucc += 1
-                    print box(6, "failed", FG_GREEN), '(expected)'
-                show_reason(reason, 4)
-            elif status == suite.SKIP:
-                numskip += 1
-                print box(6, "skip", FG_BLUE)
-            else:
-                assert False
-    return numsucc, numfail, numskip
+def const_true(x):
+    return True
+
+class ConsoleTest(object):
+    def __init__(self, filter):
+        self.module = None
+        self.npass = 0
+        self.nskip = 0
+        self.nfail = 0
+        self.failures = []
+        self.partial_line = False
+        if filter is not None:
+            self.filter = f.prefix_match
+        else:
+            self.filter = const_true
+
+    def clearline(self):
+        if self.partial_line:
+            print
+            self.partial_line = False
+
+    def module_begin(self, module):
+        print module.name
+        self.mpass = 0
+        self.mskip = 0
+        self.mfail = 0
+        return self.filter(module.name)
+
+    def module_end(self, module):
+        if self.mfail:
+            self.failures.append((module, self.mfail))
+        self.npass += self.mpass
+        self.nskip += self.mskip
+        self.nfail += self.mfail
+        del self.mpass
+        del self.mskip
+        del self.mfail
+        print
+
+    def module_pass(self, module):
+        self.module_end(module)
+
+    def module_fail(self, module, reason):
+        self.mfail += 1
+        self.clearline()
+        print '    %s' % hilite('MODULE FAILED', FG_RED, BOLD)
+        print_reason(reason, 4)
+        self.module_end(module)
+
+    def module_skip(self, module, reason):
+        self.mskip += 1
+        self.clearline()
+        print '    %s' % hilite('module skipped', FG_BLUE)
+        print_reason(reason, 4)
+        self.module_end(module)
+
+    def test_begin(self, test):
+        print '  %-20s' % (test.name,),
+        self.partial_line = True
+        return self.filter(test.name)
+
+    def test_pass(self, test):
+        if not test.fail:
+            print box(6, "ok", FG_GREEN)
+            self.mpass += 1
+        else:
+            print box(6, "PASSED", FG_RED, BOLD), '(expected failure)'
+            self.mfail += 1
+        self.partial_line = False
+
+    def test_fail(self, test, reason):
+        if not test.fail:
+            print box(6, 'FAILED', FG_RED, BOLD)
+            self.mfail += 1
+        else:
+            print box(6, 'failed', FG_GREEN), '(as expected)'
+            self.mpass += 1
+        print_reason(reason, 4)
+        self.partial_line = False
+
+    def test_skip(self, test, reason):
+        print box(6, 'skip', FG_BLUE)
+        print_reason(reason, 4)
+        self.mskip += 1
+        self.partial_line = False
+
+    def print_summary(self):
+        print 'tests passed: %d' % (self.npass,)
+        if self.nskip:
+            print 'tests skipped: %d' % (self.nskip,)
+        if self.nfail:
+            print 'tests failed: %d' % (self.nfail,)
+            for module, mfail in self.failures:
+                print '  %s: %d failures' % (module.name, mfail)
+            print 'test suite:', hilite('FAILED', FG_RED, BOLD)
+        else:
+            print 'test suite:', hilite('passed', FG_GREEN)
+
+    def success(self):
+        return self.nfail == 0
 
 def run_suite(suite, env, filter):
-    nummodule = len(suite.modules)
-    failures = []
-    numsucc = 0
-    numfail = 0
-    numskip = 0
-
-    for module in suite.modules:
-        msucc, mfail, mskip = run_module(module, env, filter)
-        if mfail:
-            failures.append((module, mfail))
-        numsucc += msucc
-        numfail += mfail
-        numskip += mskip
-
-    print
-    print 'tests passed: %d' % (numsucc,)
-    if numskip:
-        print 'tests skipped: %d' % (numskip,)
-    if numfail:
-        print 'tests failed: %d' % (numfail,)
-        for module, mfail in failures:
-            print '  %s: %d failures' % (module.name, mfail)
-        print 'test suite:', hilite('FAILED', FG_RED, BOLD)
-        return False
+    obj = ConsoleTest(filter)
+    suite.run(obj, env)
+    obj.print_summary()
+    if obj.success():
+        sys.exit(0)
     else:
-        print 'test suite:', hilite('passed', FG_GREEN)
-        return True
+        sys.exit(1)
