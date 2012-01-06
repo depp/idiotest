@@ -8,7 +8,7 @@ This has the main function for running an IdioTest suite of tests.
 """
 __all__ = ['run', 'fail', 'suite', 'proc', 'console', 'sglob']
 import idiotest.suite
-import idiotest.fail
+import idiotest.exception
 import idiotest.proc
 import idiotest.console
 import idiotest.sglob
@@ -35,7 +35,10 @@ def run(root='.', exec_paths=()):
         runner = idiotest.proc.ProcRunner(exec_paths)
     runner.geterr = not options.err
     env = {
-        'fail': idiotest.fail.fail,
+        'fail': idiotest.exception.fail,
+        'skip': idiotest.exception.skip,
+        'fail_module': idiotest.exception.fail_module,
+        'skip_module': idiotest.exception.skip_module,
         'check_output': runner.check_output,
         'get_output': runner.get_output,
         }

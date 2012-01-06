@@ -10,8 +10,10 @@ running it.
 """
 import os
 import sys
-import idiotest.fail
+import idiotest.exception
 import traceback
+
+TestException = idiotest.exception.TestException
 
 SUCCESS = 'SUCCESS'
 SKIP = 'SKIP'
@@ -47,9 +49,10 @@ class Test(object):
         try:
             self.obj()
             return SUCCESS, None
-        except idiotest.fail.TestFailure, ex:
-            reason = '%s\n%s' % (ex.reason, ex.msg.getvalue())
-            return FAIL, reason
+        except TestException, ex:
+            if ex.module:
+                raise
+            return (SKIP if ex.skip else FAIL), ex.get()
         except KeyboardInterrupt:
             raise
         except:
@@ -74,10 +77,14 @@ class Module(object):
         self.path = path
 
     def load(self, env):
-        """Load a module and return the tests.
+        """Load a module and return the (status, data).
 
         The 'env' specifies the global environment for loading the
         test module.  It is not modified.
+
+        If status is SUCCESS, then the data is a list of tests.  If
+        status is SKIP or FAIL, then the data is a reason for failure
+        or skipping.
         """
         testnames = set()
         tests = []
@@ -126,8 +133,13 @@ class Module(object):
                     "'test' expects two or fewer positional arguments")
         env = dict(env)
         env['test'] = test
-        execfile(self.path, env, env)
-        return tests
+        try:
+            execfile(self.path, env, env)
+        except TestException as ex:
+            if not ex.module:
+                raise
+            return (SKIP if ex.skip else FAIL), ex.get()
+        return SUCCESS, tests
 
     def context(self):
         """Return the execution context for this module.

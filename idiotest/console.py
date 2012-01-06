@@ -3,7 +3,6 @@
 # This source code is licensed under the GNU General Public License,
 # Version 3. See gpl-3.0.txt for details.
 import sys
-import idiotest.fail
 import idiotest.suite as suite
 
 BOLD = 1
@@ -31,12 +30,33 @@ def box(width, string, *attr):
     m = n // 2
     return '[%s%s%s]' % (' ' * (n - m), s, ' ' * m)
 
+def show_reason(reason, indent=0):
+    if not reason:
+        return
+    f = sys.stdout
+    i = ' ' * indent
+    for line in reason.splitlines():
+        f.write(i)
+        f.write(line)
+        f.write('\n')
+    f.write('\n')
+
 def run_module(module, env, filter):
     """Run a test module, return test (success, fail, skip) counts."""
     if filter is not None and not filter.prefix_match(module.name):
         print '%s (skipped)' % module.name
         return 0, 0, 0
-    tests = module.load(env)
+    status, data = module.load(env)
+    if status == suite.FAIL:
+        print '%-22s' % module.name, box(6, "FAILED", FG_RED, FG_BOLD)
+        show_reason(data, 2)
+        return 0, 1, 0
+    elif status == suite.SKIP:
+        print '%-22s' % module.name, box(6, "skip", FG_BLUE)
+        show_reason(data, 2)
+        return 0, 0, 1
+    assert status == suite.SUCCESS
+    tests = data
     if not tests:
         print '%s (no tests)' % module.name
         return 0, 0, 0
@@ -73,9 +93,7 @@ def run_module(module, env, filter):
                 else:
                     numsucc += 1
                     print box(6, "failed", FG_GREEN), '(expected)'
-                for line in reason.splitlines():
-                    print '   ', line
-                print
+                show_reason(reason, 4)
             elif status == suite.SKIP:
                 numskip += 1
                 print box(6, "skip", FG_BLUE)

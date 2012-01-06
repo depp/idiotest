@@ -10,10 +10,12 @@ its output to the expected output.  It is fairly versatile.
 import subprocess
 from cStringIO import StringIO
 import encodings.utf_8
-import idiotest.fail
+import idiotest.exception
 import difflib
 import errno
 import os.path
+
+TestFailure = idiotest.exception.TestFailure
 
 def getsigdict():
     import signal
@@ -32,7 +34,7 @@ def signame(signum):
         return 'signal %i' % (signum,)
     return 'signal %i (%s)' % (signum, name)
 
-class ProcException(idiotest.fail.TestFailure):
+class ProcException(TestFailure):
     pass
 class ProcFailure(ProcException):
     def __init__(self, retval):
