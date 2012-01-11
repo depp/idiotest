@@ -2,4 +2,4 @@
 # See LICENSE.txt for details.
 @test(fail=True)
 def utest_FAIL():
-    check_output(['cat'], '\xff\n', '\xff\fe\n')
+    proc.check_output(['cat'], input='\xff\n', output='\xff\fe\n')

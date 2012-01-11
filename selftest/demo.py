@@ -25,11 +25,11 @@ test("Test #4", MyTest("Test 4 always fails"), fail=True)
 @test
 def test_get_output():
     # Gets the output of 'echo'
-    abc = get_output(['echo', 'abc'])
+    abc = proc.get_output(['echo', 'abc'])
     if abc != 'abc\n':
         fail()
 
 @test
 def test_check_output():
     # Cat should be idempotent
-    check_output(['cat', 'test1.txt'], output='@test1.txt')
+    proc.check_output(['cat', 'test1.txt'], output=file('test1.txt', 'r'))

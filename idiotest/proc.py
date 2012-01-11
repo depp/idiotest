@@ -7,8 +7,6 @@ its output to the expected output.  It is fairly versatile.
 """
 from __future__ import absolute_import
 import subprocess
-from cStringIO import StringIO
-import encodings.utf_8
 import idiotest.exception
 import difflib
 import errno
@@ -33,27 +31,26 @@ def signame(signum):
         return 'signal %i' % (signum,)
     return 'signal %i (%s)' % (signum, name)
 
-class ProcException(TestFailure):
+class ProcFailure(TestFailure):
     pass
-class ProcNotFound(ProcException):
+class ProcNotFound(ProcFailure):
     def __init__(self, name):
-        ProcException.__init__(self, u"executable not found: %r" % name);
+        ProcFailure.__init__(self, u"executable not found: %r" % name);
         self.name = name
-class ProcFailure(ProcException):
+class ProcStatusError(ProcFailure):
     def __init__(self, retval):
-        ProcException.__init__(self, u"process returned failure (%i)" % retval)
+        ProcFailure.__init__(self, u"process returned failure (%i)" % retval)
         self.retval = retval
-class ProcSignal(ProcException):
+class ProcSignalError(ProcFailure):
     def __init__(self, signal):
-        ProcException.__init__(self, u"process received %s" % signame(signal))
+        ProcFailure.__init__(self, u"process received %s" % signame(signal))
         self.signal = signal
-class ProcOutput(ProcException):
+class ProcOutputError(ProcFailure):
     def __init__(self):
-        ProcException.__init__(self, u"incorrect output")
-class ProcPipe(ProcException):
+        ProcFailure.__init__(self, u"incorrect output")
+class ProcBrokenPipe(ProcFailure):
     def __init__(self):
-        ProcException.__init__(self, u"process closed stdin unexpectedly")
-        self.retval = -1
+        ProcFailure.__init__(self, u"process closed stdin unexpectedly")
 
 def write_stream(name, stream, file):
     if not stream:
@@ -63,7 +60,7 @@ def write_stream(name, stream, file):
     if '\x00' not in stream:
         try:
             if not isinstance(stream, unicode):
-                ustream = encodings.utf_8.decode(stream)[0]
+                ustream = stream.decode('UTF-8')
         except UnicodeDecodeError:
             pass
     if ustream is None:
@@ -78,76 +75,49 @@ def write_stream(name, stream, file):
         if ustream and not ustream.endswith(u'\n'):
             file.write(u'<no newline at end of stream>\n')
 
-class InNone(object):
-    def popenarg(self):
-        return subprocess.PIPE
-    def commarg(self):
-        return ''
-    def __nonzero__(self):
-        return False
-    def decorate(self, err):
-        pass
-class InFile(object):
-    def __init__(self, path):
-        self.path = path
-    def popenarg(self):
-        return open(self.path, 'rb')
-    def commarg(self):
-        return None
-    def decorate(self, err):
-        err.write(u"input file: %s\n" % repr(self.path))
-    def contents(self):
-        return open(self.path, 'rb').read()
-class InString(object):
-    def __init__(self, string):
-        self.string = string
-    def popenarg(self):
-        return subprocess.PIPE
-    def commarg(self):
-        if isinstance(self.string, unicode):
-            return encodings.utf_8.encode(self.string)[0]
-        return self.string
-    def decorate(self, err):
-        write_stream(u'stdin', self.string, err)
-    def contents(self):
-        return self.string
-
-def parse_input(input):
-    if input is None:
-        return InNone()
-    if input.startswith('@'):
-        return InFile(input[1:])
-    return InString(input)
-
 class Proc(object):
     """A Proc object represents a process that can be run.
 
-    It is essentially a wrapper around a subprocess.Popen object.
+    It is essentially a wrapper around a subprocess.Popen object.  It
+    is somewhat simplified.  For example, it accepts strings or files
+    for input, and does not expose pipe functionality.  If you need
+    fancy pipes, you can always call subprocess.Popen yourself.
     """
 
-    def __init__(self, cmd, executable=None, input=None,
-                 cwd=None, geterr=None):
-        self.cmd = cmd
+    def __init__(self, args,
+                 executable=None, input=None, cwd=None, geterror=False):
+        self.args = list(args)
         self.executable = executable
         self.input = input
         self.cwd = cwd
-        self.error = None
-        self.output = None
-        self.geterr = geterr
+        self.geterror = geterror
         self.broken_pipe = False
 
     def run(self):
         """Run the process."""
-        if self.geterr:
-            stderr = subprocess.PIPE
+        stderr = subprocess.PIPE if self.geterror else None
+        stdin = self.input
+        if isinstance(stdin, basestring):
+            if isinstance(stdin, unicode):
+                carg = stdin.encode('UTF-8')
+            elif isinstance(stdin, str):
+                carg = stdin
+            else:
+                raise TypeError('input should be string, file, or None')
+            stdin = subprocess.PIPE
+        elif hasattr(stdin, 'read'):
+            carg = None
+        elif stdin is None:
+            stdin = subprocess.PIPE
+            carg = None
         else:
-            stderr = None
+            raise TypeError('input must be file, string, or None')
         proc = subprocess.Popen(
-            self.cmd, executable=self.executable,
-            cwd=self.cwd, stdin=self.input.popenarg(),
-            stdout=subprocess.PIPE, stderr=stderr)
+            self.args, executable=self.executable, cwd=self.cwd,
+            stdin=stdin, stdout=subprocess.PIPE, stderr=stderr,
+            close_fds=True)
         try:
-            output, error = proc.communicate(self.input.commarg())
+            output, error = proc.communicate(carg)
         except OSError, ex:
             if ex.errno == errno.EPIPE:
                 self.broken_pipe = True
@@ -164,29 +134,92 @@ class Proc(object):
     def check_signal(self):
         """Raise an exception if the process was terminated by a signal."""
         if self.retcode < 0:
-            err = ProcSignal(-self.retcode)
+            err = ProcSignalError(-self.retcode)
             self.decorate(err)
             raise err
 
-    def check_success(self, result):
-        """Raise an exception if the process gave an incorrect status."""
-        self.check_signal()
-        if self.retcode != result:
-            err = ProcFailure(self.retcode)
+    def check_status(self, status):
+        """Raise an exception if the process gave an incorrect status.
+
+        The status should either be an integer, a collection of
+        integers, or a callable object which returns True for a
+        correct status and False for an incorrect status.  This 
+        """
+        if self.retcode != status:
+            err = ProcStatusError(self.retcode)
             self.decorate(err)
             raise err
         if self.broken_pipe:
-            err = ProcPipe()
+            err = ProcBrokenPipe()
             self.decorate(err)
             raise err
 
     def decorate(self, err):
         """Add process information to an exception."""
-        err.write(u'command: %s\n' % ' '.join(self.cmd))
+        err.write(u'command: %s\n' % ' '.join(self.args))
         if self.cwd is not None:
             err.write(u'cwd: %s\n' % self.cwd)
-        self.input.decorate(err)
+        stdin = self.input
+        if isinstance(stdin, basestring):
+            write_stream(u'stdin', stdin, err)
+        elif hasattr(stdin, 'read'):
+            err.write(u"input file: %s\n" % repr(stdin.name))
+        elif stdin is None:
+            pass
+        else:
+            raise TypeError('input must be file, string, or None')
         write_stream('stderr', self.error, err)
+
+    def check_output(self, output=None):
+        """Raise an exception if the program gave incorrect output.
+
+        The expected output can be a file, string, unicode object, or
+        None.  If None, no output is expected.  If a byte string, then
+        the output is compared to the string.  If a unicode string,
+        the output is decoded as UTF-8 and compared to the string.  If
+        a file, the file contents are compared against the output.
+        """
+        try:
+            procout = self.output
+        except AttributeError:
+            raise Exception('program has not been run')
+        if isinstance(output, basestring):
+            outstr = output
+        elif hasattr(output, 'read'):
+            outstr = output.read()
+        elif output is None:
+            outstr = ''
+        else:
+            raise TypeError('output must be file, string, or None')
+        if isinstance(outstr, unicode):
+            try:
+                procout = procout.decode('UTF-8')
+            except UnicodeDecodeError:
+                err = ProcOutputError()
+                p.decorate(err)
+                write_stream(u'output', procout, err)
+                raise err
+            if procout != outstr:
+                err = ProcOutputError()
+                p.decorate(err)
+                eout = outstr.splitlines(True)
+                pout = procout.splitlines(True)
+                err.write(u"=== diff ===\n")
+                for line in difflib.Differ().compare(eout, pout):
+                    err.write(line)
+                raise err
+        elif isinstance(outstr, str):
+            if procout != outstr:
+                err = ProcOutputError()
+                self.decorate(err)
+                eout = [repr(x)+'\n' for x in outstr.splitlines(True)]
+                pout = [repr(x)+'\n' for x in procout.splitlines(True)]
+                err.write(u"=== diff ===\n")
+                for line in difflib.Differ().compare(eout, pout):
+                    err.write(line)
+                raise err
+        else:
+            raise TypeError('output must yield a string or unicode object')
 
 class ProcRunner(object):
     """A ProcRunner runs programs for a test suite.
@@ -194,9 +227,9 @@ class ProcRunner(object):
     It searches for program executables and modifies program arguments
     if necessary.
     """
-    ENV = ['check_output', 'get_output']
+
     def __init__(self, options):
-        self.geterr = not options.err
+        self.geterror = not options.err
         self.paths = [os.path.abspath(path) for path in options.exec_paths]
         try:
             ospaths = os.environ['PATH']
@@ -208,6 +241,17 @@ class ProcRunner(object):
                     continue
                 self.paths.append(os.path.abspath(ospath))
         self.path_cache = {}
+        if options.wrap:
+            wrap = options.wrap.split()
+            if not wrap:
+                raise Exception('--wrap cannot be empty')
+            try:
+                self.executable = self.find_executable(wrap[0])
+            except ProcNotFound:
+                raise Exception('--wrap: program not found: %r' % wrap[0])
+            self.wrap = wrap
+        else:
+            self.wrap = None
 
     def find_executable(self, name):
         """Find an executable in the search path.
@@ -231,66 +275,47 @@ class ProcRunner(object):
                 return path
         raise ProcNotFound(name)
 
-    def proc(self, cmd, input, cwd):
-        """Get the Proc object to run the command."""
-        executable = self.find_executable(cmd[0])
-        return Proc(cmd, executable=executable, input=input,
-                    cwd=cwd, geterr=self.geterr)
+    def proc(self, args, executable=None, geterror=False, **kw):
+        """Create a Proc object for running a program.
 
-    def get_output(self, cmd, input=None, cwd=None, result=0):
-        """Run a program and return the output."""
-        p = self.proc(cmd, parse_input(input), cwd)
-        p.run()
-        p.check_success(result)
-        return p.output
+        Raises an exception if the program is not found.
+        """
+        if executable is None:
+            executable = self.find_executable(args[0])
+        if self.wrap is not None:
+            args = self.wrap + [executable] + args[1:]
+            executable = self.executable
+        geterror = geterror or self.geterror
+        return Proc(args, executable=executable, geterror=geterror, **kw)
 
-    def check_output(self, cmd, input=None, output=None,
-                     cwd=None, result=0):
-        """Run a program and check the output against a reference."""
-        p = self.proc(cmd, parse_input(input), cwd)
-        p.run()
-        p.check_success(result)
-        output = parse_input(output).contents()
-        procout = p.output
-        if isinstance(output, unicode):
-            try:
-                procout = encodings.utf_8.decode(procout)[0]
-            except UnicodeDecodeError:
-                err = ProcOutput()
-                p.decorate(err)
-                write_stream(u'output', procout, err)
-                raise err
-            if procout != output:
-                err = ProcOutput()
-                p.decorate(err)
-                eout = output.splitlines(True)
-                pout = procout.splitlines(True)
-                err.write(u"=== diff ===\n")
-                for line in difflib.Differ().compare(eout, pout):
-                    err.write(line)
-                raise err
+    def run(self, args, status=0, **kw):
+        """Run a program and return the Proc object.
+
+        Raises an exception if the program is not found, if the
+        timeout expires, if the program is terminated by a signal, if
+        the process does not consume its input, or if the program
+        returns an invalid status code.  The status code will not be
+        checked if status is None.
+        """
+        proc = self.proc(args, **kw)
+        proc.run()
+        if status is not None:
+            proc.check_status(status)
         else:
-            if procout != output:
-                err = ProcOutput()
-                p.decorate(err)
-                eout = [repr(x)+'\n' for x in output.splitlines(True)]
-                pout = [repr(x)+'\n' for x in procout.splitlines(True)]
-                err.write(u"=== diff ===\n")
-                for line in difflib.Differ().compare(eout, pout):
-                    err.write(line)
-                raise err
-
-class ProcWrapper(ProcRunner):
-    def __init__(self, options):
-        ProcRunner.__init__(self, options)
-        self.wrap = options.wrap.split()
-    def proc(self, cmd, input, cwd):
-        proc = ProcRunner.proc(self, cmd, input, cwd)
-        proc.cmd = self.wrap + proc.cmd
+            proc.check_signal()
         return proc
 
-def env(options):
-    if options.wrap:
-        return ProcWrapper(options)
-    else:
-        return ProcRunner(options)
+    def get_output(self, args, **kw):
+        """Run a program and return its output.
+
+        Fails under the same conditions as 'run'.
+        """
+        return self.run(args, **kw).output
+
+    def check_output(self, args, output=None, **kw):
+        """Run a program and check its output against a reference.
+
+        Fails under the same conditions as 'run'.  Raises an exception
+        if the program output does not match the reference output.
+        """
+        self.run(args, **kw).check_output(output)

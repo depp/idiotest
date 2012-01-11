@@ -13,5 +13,5 @@ def make_env(options):
     """Make an execution environment with the given command line options."""
     env = dict()
     add_env(env, idiotest.exception)
-    add_env(env, idiotest.proc.env(options))
+    env['proc'] = idiotest.proc.ProcRunner(options)
     return env
