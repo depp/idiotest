@@ -116,6 +116,11 @@ def parse_input(input):
     return InString(input)
 
 class Proc(object):
+    """A Proc object represents a process that can be run.
+
+    It is essentially a wrapper around a subprocess.Popen object.
+    """
+
     def __init__(self, cmd, input, cwd, geterr):
         self.cmd = cmd
         self.input = input
@@ -124,7 +129,9 @@ class Proc(object):
         self.output = None
         self.geterr = geterr
         self.broken_pipe = False
+
     def run(self):
+        """Run the process."""
         if self.geterr:
             stderr = subprocess.PIPE
         else:
@@ -146,12 +153,16 @@ class Proc(object):
         self.output = output
         self.error = error
         self.retcode = retcode
+
     def check_signal(self):
+        """Raise an exception if the process was terminated by a signal."""
         if self.retcode < 0:
             err = ProcSignal(-self.retcode)
             self.decorate(err)
             raise err
+
     def check_success(self, result):
+        """Raise an exception if the process gave an incorrect status."""
         self.check_signal()
         if self.retcode != result:
             err = ProcFailure(self.retcode)
@@ -161,7 +172,9 @@ class Proc(object):
             err = ProcPipe()
             self.decorate(err)
             raise err
+
     def decorate(self, err):
+        """Add process information to an exception."""
         err.write(u'command: %s\n' % ' '.join(self.cmd))
         if self.cwd is not None:
             err.write(u'cwd: %s\n' % self.cwd)
@@ -169,12 +182,26 @@ class Proc(object):
         write_stream('stderr', self.error, err)
 
 class ProcRunner(object):
+    """A ProcRunner runs programs for a test suite.
+
+    It searches for program executables and modifies program arguments
+    if necessary.
+    """
     ENV = ['check_output', 'get_output']
     def __init__(self, options):
         self.geterr = not options.err
         self.paths = [os.path.abspath(path) for path in options.exec_paths]
         self.pcache = {}
+
     def find_proc(self, proc):
+        """Find a program in the search path.
+
+        If the given program starts with '.' or '..', then it is
+        interpreted as a relative path and returned directly.
+        Otherwise, the search path is scanned for a program with the
+        given relative path.  If a match is found, the absolute path
+        is returned.  If there is no match, the parameter is returned.
+        """
         if proc in self.pcache:
             return self.pcache[proc]
         if proc.startswith('./') or proc.startswith('../') \
@@ -190,17 +217,23 @@ class ProcRunner(object):
                 path = proc
         self.pcache[proc] = path
         return path
+
     def proc(self, cmd, input, cwd):
+        """Get the Proc object to run the command."""
         cmd = cmd[:]
         cmd[0] = self.find_proc(cmd[0])
         return Proc(cmd, input, cwd, self.geterr)
+
     def get_output(self, cmd, input=None, cwd=None, result=0):
+        """Run a program and return the output."""
         p = self.proc(cmd, parse_input(input), cwd)
         p.run()
         p.check_success(result)
         return p.output
+
     def check_output(self, cmd, input=None, output=None,
                      cwd=None, result=0):
+        """Run a program and check the output against a reference."""
         p = self.proc(cmd, parse_input(input), cwd)
         p.run()
         p.check_success(result)
