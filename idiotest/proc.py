@@ -35,6 +35,10 @@ def signame(signum):
 
 class ProcException(TestFailure):
     pass
+class ProcNotFound(ProcException):
+    def __init__(self, name):
+        ProcException.__init__(self, u"executable not found: %r" % name);
+        self.name = name
 class ProcFailure(ProcException):
     def __init__(self, retval):
         ProcException.__init__(self, u"process returned failure (%i)" % retval)
@@ -121,8 +125,10 @@ class Proc(object):
     It is essentially a wrapper around a subprocess.Popen object.
     """
 
-    def __init__(self, cmd, input, cwd, geterr):
+    def __init__(self, cmd, executable=None, input=None,
+                 cwd=None, geterr=None):
         self.cmd = cmd
+        self.executable = executable
         self.input = input
         self.cwd = cwd
         self.error = None
@@ -137,7 +143,8 @@ class Proc(object):
         else:
             stderr = None
         proc = subprocess.Popen(
-            self.cmd, cwd=self.cwd, stdin=self.input.popenarg(),
+            self.cmd, executable=self.executable,
+            cwd=self.cwd, stdin=self.input.popenarg(),
             stdout=subprocess.PIPE, stderr=stderr)
         try:
             output, error = proc.communicate(self.input.commarg())
@@ -191,38 +198,44 @@ class ProcRunner(object):
     def __init__(self, options):
         self.geterr = not options.err
         self.paths = [os.path.abspath(path) for path in options.exec_paths]
-        self.pcache = {}
-
-    def find_proc(self, proc):
-        """Find a program in the search path.
-
-        If the given program starts with '.' or '..', then it is
-        interpreted as a relative path and returned directly.
-        Otherwise, the search path is scanned for a program with the
-        given relative path.  If a match is found, the absolute path
-        is returned.  If there is no match, the parameter is returned.
-        """
-        if proc in self.pcache:
-            return self.pcache[proc]
-        if proc.startswith('./') or proc.startswith('../') \
-                or proc.startswith('/'):
-            path = proc
+        try:
+            ospaths = os.environ['PATH']
+        except KeyError:
+            pass
         else:
-            for path in self.paths:
-                path = os.path.join(path, proc)
-                path = os.path.normpath(path)
-                if os.path.isfile(path):
-                    break
-            else:
-                path = proc
-        self.pcache[proc] = path
-        return path
+            for ospath in ospaths.split(os.pathsep):
+                if not ospath:
+                    continue
+                self.paths.append(os.path.abspath(ospath))
+        self.path_cache = {}
+
+    def find_executable(self, name):
+        """Find an executable in the search path.
+
+        If the program name starts with '.', '..', or '/', then it is
+        returned directly.  Otherwise, it is appended to each search
+        path until a file is found.  If no file is found, ProcNotFound
+        is raised.
+        """
+        try:
+            return self.path_cache[name]
+        except KeyError:
+            pass
+        if name.startswith('./') or name.startswith('../') \
+                or name.startswith('/'):
+            return name
+        for path in self.paths:
+            path = os.path.normpath(os.path.join(path, name))
+            if os.path.isfile(path):
+                self.path_cache[name] = path
+                return path
+        raise ProcNotFound(name)
 
     def proc(self, cmd, input, cwd):
         """Get the Proc object to run the command."""
-        cmd = cmd[:]
-        cmd[0] = self.find_proc(cmd[0])
-        return Proc(cmd, input, cwd, self.geterr)
+        executable = self.find_executable(cmd[0])
+        return Proc(cmd, executable=executable, input=input,
+                    cwd=cwd, geterr=self.geterr)
 
     def get_output(self, cmd, input=None, cwd=None, result=0):
         """Run a program and return the output."""
