@@ -131,22 +131,27 @@ class Proc(object):
         self.error = error
         self.retcode = retcode
 
-    def check_signal(self):
-        """Raise an exception if the process was terminated by a signal."""
-        if self.retcode < 0:
-            err = ProcSignalError(-self.retcode)
+    def check_exit(self, status):
+        """Raise an exception if the process exited incorrectly.
+
+        The status should either be an integer, a callable object
+        which returns True for a correct status and False for an
+        incorrect status, or None.  If None, then any status is
+        acceptable and only signals are considered errors.
+        """
+        code = self.retcode
+        if code < 0:
+            err = ProcSignalError(-code)
             self.decorate(err)
             raise err
-
-    def check_status(self, status):
-        """Raise an exception if the process gave an incorrect status.
-
-        The status should either be an integer, a collection of
-        integers, or a callable object which returns True for a
-        correct status and False for an incorrect status.  This 
-        """
-        if self.retcode != status:
-            err = ProcStatusError(self.retcode)
+        if callable(status):
+            error = not status(code)
+        elif status is None:
+            error = False
+        else:
+            error = status != code
+        if error:
+            err = ProcStatusError(code)
             self.decorate(err)
             raise err
         if self.broken_pipe:
@@ -299,10 +304,7 @@ class ProcRunner(object):
         """
         proc = self.proc(args, **kw)
         proc.run()
-        if status is not None:
-            proc.check_status(status)
-        else:
-            proc.check_signal()
+        proc.check_exit(status)
         return proc
 
     def get_output(self, args, **kw):
