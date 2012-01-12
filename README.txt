@@ -76,19 +76,29 @@ skip_module(reason=None)
     Note that if this is called from the top level of a module, all
     tests will be skipped.
 
-get_output(cmd, input=None, cwd=None, result=0)
-    Get the output from running a program.  Feeds the program 'input'
-    as input, which is either a string or the name of a file prefixed
-    with '@'.  Runs the program in the 'cwd' directory.  Causes the
-    current test to fail if the exit status is anything other than
-    'result'.
+proc.proc(self, args, executable=None, input=None,
+          cwd=None, geterror=False())
+    Create a process object for running a process.
 
-check_output(cmd, input=None, output=None, cwd=None, result=0)
-    Get the output from running a program and check it against the
-    expected output.  Behaves like get_output.  The 'output' argument
-    is either a string or the name of a file prefixed with '@'.  If
-    the program output differs form the expected output, check_output
-    causes the current test to fail.
+    args: Process arguments, a list.  E.g., ['cat', 'file.txt']
+    executable: Optional absolute path to executable
+    input: Program input, a string, file, or None
+    cwd: Program working directory
+    geterror: If True, stderr is captured
+
+proc.run(...)
+    Run a program.  Equivalent to calling 'proc.proc', then calling
+    'run' and 'check_exit' on the result.
+
+proc.get_output(...)
+    Get the output from running a program.  Equivalent to calling
+    'proc.run' and returning the output of the result.
+
+proc.check_output(..., output=None)
+    Verify that the program output matches the reference output.  Like
+    the program input, the output parameter can be a string, file, or
+    None.  Equivalent to calling 'proc.run' and running 'check_output'
+    on the result.
 
 Example test
 ------------
@@ -120,14 +130,14 @@ self-test, you can find it under 'selftest/demo.py'.
     @test
     def test_get_output():
         # Gets the output of 'echo'
-        abc = get_output(['echo', 'abc'])
+        abc = proc.get_output(['echo', 'abc'])
         if abc != 'abc\n':
             fail()
 
     @test
     def test_check_output():
         # Cat should be idempotent
-        check_output(['cat', 'test1.txt'], output='@test1.txt')
+        proc.check_output(['cat', 'test1.txt'], output='@test1.txt')
 
 Command line usage
 ------------------
